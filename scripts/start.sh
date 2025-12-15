@@ -5,12 +5,12 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$DIR/.."
 cd "$PROJECT_ROOT/backend"
 if [ ! -d "venv" ]; then
-    python -m venv venv
+    python3 -m venv venv
 fi
 source venv/bin/activate
 pip install -r ../requirements.txt
 # Load environment variables and start Flask
-python -c "
+python3 -c "
 from dotenv import load_dotenv
 load_dotenv('../.env')
 from brilliance.api.v1 import app

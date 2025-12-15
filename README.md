@@ -1,4 +1,5 @@
 # Brilliance — Multi‑source Research Assistant with AI Synthesis
+![Brilliance UI](frontend/public/screenshot.png)
 
 Brilliance is a full‑stack app that gathers recent papers from multiple scholarly sources (arXiv, PubMed, OpenAlex), then produces an AI‑generated synthesis tailored to your query. It includes advanced features like domain filtering, enhanced terminology expansion, and is designed for quick local testing and simple cloud deployment.
 

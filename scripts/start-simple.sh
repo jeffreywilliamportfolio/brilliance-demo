@@ -22,7 +22,7 @@ cd backend
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     echo "📦 Creating Python virtual environment..."
-    python -m venv venv
+    python3 -m venv venv
 fi
 
 # Activate virtual environment and install deps
@@ -45,4 +45,4 @@ cd ..
 echo "🎉 Starting both services..."
 npx -y concurrently -k -r -n FRONTEND,BACKEND -c blue,green \
   "cd frontend && unset HOST && npm start" \
-  "cd backend && source venv/bin/activate && python -c \"from dotenv import load_dotenv; load_dotenv('../.env'); from brilliance.api.v1 import app; app.run(host='0.0.0.0', port=8000, debug=True)\""
+  "cd backend && source venv/bin/activate && python3 -c \"from dotenv import load_dotenv; load_dotenv('../.env'); from brilliance.api.v1 import app; app.run(host='0.0.0.0', port=8000, debug=True)\""

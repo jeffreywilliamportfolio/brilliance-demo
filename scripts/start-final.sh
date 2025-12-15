@@ -22,7 +22,7 @@ cd backend
 # Create virtual environment if it doesn't exist
 if [ ! -d "venv" ]; then
     echo "📦 Creating Python virtual environment..."
-    python -m venv venv
+    python3 -m venv venv
 fi
 
 # Activate virtual environment and install deps
@@ -31,7 +31,7 @@ pip install -r ../requirements.txt
 
 # Start backend in background
 echo "🔌 Starting Flask backend on port 8000..."
-python -c "
+python3 -c "
 from dotenv import load_dotenv
 load_dotenv('../.env')
 from brilliance.api.v1 import app
