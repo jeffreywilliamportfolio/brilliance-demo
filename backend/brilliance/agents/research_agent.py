@@ -15,6 +15,7 @@ from brilliance.agents.tools import (
     arxiv_search,
     pubmed_search,
     openalex_search,
+    enhanced_arxiv_search,
     set_research_budget,
     clear_research_budget,
 )
@@ -58,6 +59,7 @@ RESEARCH_INSTRUCTIONS = (
     "- General science: search across arXiv, PubMed, OpenAlex.\n\n"
     "Query optimization tips:\n"
     "- arXiv: Use specific technical terms, acronyms, and key concepts. Natural language works well.\n"
+    "- Enhanced arXiv: For comprehensive coverage, use enhanced_arxiv_search which expands terminology and filters for relevance.\n"
     "- PubMed: Include medical/biological terms, disease names, treatment types.\n"
     "- OpenAlex: Broader interdisciplinary terms work well.\n"
     "- Avoid overly generic terms; be specific about the research domain.\n\n"
@@ -79,6 +81,7 @@ def _build_research_agent(model: str, enabled_sources: Optional[List[str]] = Non
     tools = []
     if "arxiv" in enabled_sources:
         tools.append(arxiv_search)
+        tools.append(enhanced_arxiv_search)  # Always include enhanced search when arxiv is enabled
     if "pubmed" in enabled_sources:
         tools.append(pubmed_search)
     if "openalex" in enabled_sources:
@@ -91,7 +94,7 @@ def _build_research_agent(model: str, enabled_sources: Optional[List[str]] = Non
         for r in tool_results:
             name = getattr(r.tool, "name", "")
             out = str(getattr(r, "output", "")).strip() or "No results"
-            if name.endswith("arxiv_search") or name == "arxiv_search":
+            if name.endswith("arxiv_search") or name == "arxiv_search" or name.endswith("enhanced_arxiv_search") or name == "enhanced_arxiv_search":
                 sources["arxiv"] = out
                 if "arxiv" not in used:
                     used.append("arxiv")

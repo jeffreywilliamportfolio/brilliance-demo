@@ -44,7 +44,7 @@ def _safe_get_authors(article: Any) -> str:
     return ", ".join(authors) if authors else "N/A"
 
 
-def _fetch(query: str, max_results: int = 3) -> str:
+def _fetch(query: str, max_results: int = 18) -> str:
     base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
     
     # 1. ESearch – allow direct URL or construct from query
@@ -164,6 +164,6 @@ def _fetch(query: str, max_results: int = 3) -> str:
     return "\n\n".join(parts) if parts else "No papers found."
 
 
-def search_pubmed(query: str, max_results: int = 3) -> str:
+def search_pubmed(query: str, max_results: int = 18) -> str:
     """Search PubMed for papers matching the query."""
     return _fetch(query, max_results)

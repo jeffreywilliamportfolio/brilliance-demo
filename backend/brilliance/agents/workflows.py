@@ -14,11 +14,12 @@ from brilliance.agents.build_query import build_api_queries
 from brilliance.tools.arxiv import search_arxiv as _search_arxiv
 from brilliance.tools.pubmed import search_pubmed as _search_pubmed
 from brilliance.tools.openalex import search_openalex as _search_openalex
+from brilliance.tools.enhanced_arxiv import enhanced_arxiv_search_sync
 from brilliance.synthesis.synthesis_tool import synthesize_papers_async
 from brilliance.celery_app import celery_app
 
 
-async def multi_source_search(query: str, max_results: int = 3, model: Optional[str] = None, user_api_key: Optional[str] = None, reasoning_effort: Optional[str] = None, verbosity: Optional[str] = None, sources: Optional[List[str]] = None, optimized_query=None, api_queries=None) -> Dict[str, Any]:
+async def multi_source_search(query: str, max_results: int = 18, model: Optional[str] = None, user_api_key: Optional[str] = None, reasoning_effort: Optional[str] = None, verbosity: Optional[str] = None, sources: Optional[List[str]] = None, optimized_query=None, api_queries=None, domain_context=None) -> Dict[str, Any]:
     """Fetch research results from sources.
 
     Strategy is controlled by RESEARCH_STRATEGY env var:
@@ -47,11 +48,23 @@ async def multi_source_search(query: str, max_results: int = 3, model: Optional[
         # arXiv
         if "arxiv" in sources:
             try:
-                if api_queries and "arxiv" in api_queries:
+                # Check if enhanced arXiv search is enabled via environment variable
+                use_enhanced_arxiv = os.getenv("USE_ENHANCED_ARXIV", "true").lower() == "true"
+                
+                if use_enhanced_arxiv:
+                    # Use enhanced arXiv search for better coverage and relevance
+                    results["arxiv"] = enhanced_arxiv_search_sync(
+                        query=search_query, 
+                        max_results=max_results,
+                        min_relevance_score=0.4,
+                        domain_context=domain_context
+                    )
+                elif api_queries and "arxiv" in api_queries:
                     # Use the full optimized arXiv URL
                     results["arxiv"] = _search_arxiv(api_queries["arxiv"], max_results)
                 else:
                     results["arxiv"] = _search_arxiv(search_query, max_results)
+                    
                 if results["arxiv"] and not results["arxiv"].startswith("Error") and results["arxiv"].strip() != "No papers found.":
                     used.append("arxiv")
             except Exception:
@@ -239,7 +252,7 @@ def rank_and_trim_results(all_results: Dict[str, Any], query: str, max_total: in
         return all_results
 
 
-async def orchestrate_research(user_query: str, max_results: int = 12, model: Optional[str] = None, user_api_key: Optional[str] = None, reasoning_effort: Optional[str] = None, verbosity: Optional[str] = None, sources: Optional[List[str]] = None) -> Dict[str, Any]:
+async def orchestrate_research(user_query: str, max_results: int = 12, model: Optional[str] = None, user_api_key: Optional[str] = None, reasoning_effort: Optional[str] = None, verbosity: Optional[str] = None, sources: Optional[List[str]] = None, primary_domains: Optional[List[str]] = None, exclude_domains: Optional[List[str]] = None, focus_keywords: Optional[List[str]] = None) -> Dict[str, Any]:
     """
     Main orchestration function for research queries with optimization.
     
@@ -247,11 +260,28 @@ async def orchestrate_research(user_query: str, max_results: int = 12, model: Op
         user_query: Natural language research question
         max_results: Maximum results per source
         sources: List of sources to search. If None, defaults to all sources.
+        primary_domains: List of primary research domains for filtering
+        exclude_domains: List of domains to exclude from results
+        focus_keywords: Additional keywords to focus the search
         
     Returns:
         Comprehensive research results with optimization metadata and synthesis
     """
     print(f"🔍 Optimizing query (len={len(user_query)})")
+    
+    # Step 0: Create domain context if domain parameters provided
+    domain_context = None
+    if primary_domains or exclude_domains or focus_keywords:
+        from brilliance.tools.domain_classifier import DomainClassifier
+        classifier = DomainClassifier()
+        domain_context = classifier.create_domain_context(
+            primary_domains=primary_domains or [],
+            exclude_domains=exclude_domains or [],
+            focus_keywords=focus_keywords or []
+        )
+        print(f"🏷️ Using domain context: {[d.value for d in domain_context.primary_domains]}")
+        if domain_context.exclude_domains:
+            print(f"   Excluding domains: {[d.value for d in domain_context.exclude_domains]}")
     
     # Step 1: Query optimization - extract keywords and build structured query
     try:
@@ -275,7 +305,8 @@ async def orchestrate_research(user_query: str, max_results: int = 12, model: Op
         verbosity=verbosity, 
         sources=sources,
         optimized_query=optimized_query,
-        api_queries=api_queries
+        api_queries=api_queries,
+        domain_context=domain_context
     )
     # Rank globally and trim to the requested max total
     trimmed_results = rank_and_trim_results(search_results, user_query, max_results)

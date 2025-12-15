@@ -27,7 +27,7 @@ def _safe_get_nested(obj: Dict[str, Any], path: List[str], default: str = "") ->
     return str(current) if current is not None else str(default)
 
 
-def _fetch(query: str, max_results: int = 3) -> str:
+def _fetch(query: str, max_results: int = 18) -> str:
     # Permit full OpenAlex URL; else build default search URL
     if isinstance(query, str) and query.startswith("http"):
         url = query
@@ -122,6 +122,6 @@ def _fetch(query: str, max_results: int = 3) -> str:
     return "\n\n".join(parts) or "No papers found."
 
 
-def search_openalex(query: str, max_results: int = 3) -> str:
+def search_openalex(query: str, max_results: int = 18) -> str:
     """Search OpenAlex for papers matching the query."""
     return _fetch(query, max_results)

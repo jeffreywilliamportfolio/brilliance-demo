@@ -31,7 +31,7 @@ def bold(text: str) -> str:
     return f"\033[1m{text}\033[0m"
 
 
-async def run_workflow(user_query: str, max_results: int = 3):
+async def run_workflow(user_query: str, max_results: int = 18):
     print(bold("\n🔍 Collecting papers ..."))
     collected = await multi_source_search(user_query, max_results)
     payload = prepare_results_for_synthesis(collected)

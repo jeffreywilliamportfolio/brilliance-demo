@@ -3,6 +3,8 @@ import httpx
 import feedparser
 from typing import List, Any, Optional
 from urllib.parse import quote_plus
+import time
+import os
 
 def _safe_get_text(entry: Any, attr: str, default: str = "") -> str:
     """Safely get text attribute from feedparser entry."""
@@ -57,7 +59,6 @@ def _extract_phrases_and_terms(query: str) -> tuple[list[str], list[str]]:
 
     return phrases, terms
 
-
 def _guess_categories(terms: list[str]) -> list[str]:
     """Guess arXiv subject categories from terms (very lightweight heuristic)."""
     lowered = " ".join(terms)
@@ -75,9 +76,8 @@ def _guess_categories(terms: list[str]) -> list[str]:
             uniq.append(c)
     return uniq
 
-
 def _build_fielded_query_from_nl(query: str) -> Optional[str]:
-    """Build a fielded arXiv query from a natural-language question. Returns None if not enough signal."""
+    """Build a fielded arXiv query from a natural-language question using current API specs."""
     phrases, terms = _extract_phrases_and_terms(query)
     if not phrases and not terms:
         return None
@@ -85,23 +85,25 @@ def _build_fielded_query_from_nl(query: str) -> Optional[str]:
     must_groups: list[str] = []
     optional_groups: list[str] = []
 
-    # Require up to two phrases as anchors
+    # Require up to two phrases as anchors using exact phrase matching
     for p in phrases[:2]:
-        # Escape quotes inside phrase (rare)
+        # Escape quotes inside phrase and use exact phrase matching
         safe_p = p.replace('"', '\\"')
         must_groups.append(f'(ti:"{safe_p}" OR abs:"{safe_p}")')
 
-    # Use up to four informative terms as optional signals
+    # Use up to four informative terms as optional signals with field prefixes
     if terms:
         head = terms[:4]
-        scoped = [f'ti:"{w}"' for w in head] + [f'abs:"{w}"' for w in head]
+        # Use proper field prefixes: ti: for title, abs: for abstract
+        scoped = [f'ti:{w}' for w in head] + [f'abs:{w}' for w in head]
         optional_groups.append("(" + " OR ".join(scoped) + ")")
 
-    # Add guessed categories as optional
+    # Add guessed categories as optional using cat: prefix
     cats = _guess_categories(terms + [p.lower() for p in phrases])
     if cats:
         optional_groups.append("(" + " OR ".join(f"cat:{c}" for c in cats) + ")")
 
+    # Build query with proper boolean operators
     if must_groups:
         if optional_groups:
             return " AND ".join(must_groups + ["(" + " OR ".join(optional_groups) + ")"])
@@ -111,9 +113,8 @@ def _build_fielded_query_from_nl(query: str) -> Optional[str]:
         return "(" + " OR ".join(optional_groups) + ")"
     return None
 
-
 def _build_search_query(query: str) -> str:
-    """Build an optimized arXiv search query string (without URL)."""
+    """Build an optimized arXiv search query string following current API specifications."""
     # If query already contains field specifiers (ti:, au:, abs:, cat:, all:), use as-is
     if any(field in query.lower() for field in ['ti:', 'au:', 'abs:', 'cat:', 'all:']):
         return query
@@ -124,11 +125,11 @@ def _build_search_query(query: str) -> str:
         return fielded
     return f"all:{query}"
 
-def _fetch(q: str, max_results: int = 3) -> str:
+def _fetch(q: str, max_results: int = 18) -> str:
     """
-    Fetch from arXiv. Accepts either a full API URL or a natural-language/fielded query.
-    Adds polite pagination when ARXIV_MIN_YEAR is set so we can still return up to max_results
-    after client-side year filtering. Extracts PDF links when present.
+    Fetch from arXiv following current API specifications.
+    Accepts either a full API URL or a natural-language/fielded query.
+    Implements proper rate limiting (1 request per 3 seconds) and field-specific queries.
     """
     import os
     from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
@@ -152,8 +153,8 @@ def _fetch(q: str, max_results: int = 3) -> str:
                 "search_query": search_query,
                 "start": start,
                 "max_results": page_size,
-                # Prefer relevance if using fielded ti:/abs:/cat:, else recency for all:
-                "sortBy": ("relevance" if any(k in search_query for k in ["ti:", "abs:", "cat:"]) else "submittedDate"),
+                # Use relevance for fielded queries, submittedDate for natural language
+                "sortBy": ("relevance" if any(k in search_query for k in ["ti:", "abs:", "cat:", "au:"]) else "submittedDate"),
                 "sortOrder": "descending",
             }
             return f"{base_url}?" + "&".join([f"{k}={quote_plus(str(v))}" for k, v in params.items()])
@@ -208,6 +209,10 @@ def _fetch(q: str, max_results: int = 3) -> str:
     while len(collected_parts) < max_results and pages_tried < max_pages and not last_batch_empty:
         url = _build_url(attempts[attempt_index], start, page_size)
         try:
+            # Implement arXiv rate limiting: 1 request per 3 seconds
+            if pages_tried > 0:
+                time.sleep(3)
+            
             for attempt in range(3):
                 try:
                     resp = httpx.get(url, headers=headers, timeout=httpx.Timeout(10.0, connect=5.0))
@@ -282,6 +287,6 @@ def _fetch(q: str, max_results: int = 3) -> str:
     # Trim to requested count
     return "\n\n".join(collected_parts[:max_results])
 
-def search_arxiv(query: str, max_results: int = 3) -> str:
-    """Search arXiv for papers matching the query."""
+def search_arxiv(query: str, max_results: int = 18) -> str:
+    """Search arXiv for papers matching the query using current API specifications."""
     return _fetch(query, max_results)

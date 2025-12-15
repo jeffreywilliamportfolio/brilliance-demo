@@ -11,6 +11,7 @@ from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
 
 from brilliance.agents.workflows import orchestrate_research, orchestrate_research_task
+from brilliance.tools.domain_classifier import get_available_domains, DomainClassifier
 
 
 # In-memory per-process quota store: ip -> (count, reset_epoch_seconds)
@@ -291,13 +292,24 @@ def create_app() -> Flask:
             "require_api_key": False,
         }, 200
 
+    @app.get("/domains")
+    def domains() -> tuple[dict, int]:
+        """Get available research domains for filtering."""
+        available_domains = get_available_domains()
+        return {
+            "domains": [
+                {"value": key, "label": label}
+                for key, label in available_domains.items()
+            ]
+        }, 200
+
     @app.post("/research")
     def research() -> tuple[dict, int]:
         payload = request.get_json(silent=True) or {}
         query = (payload.get("query") or "").strip()
         # No default cap - allow unlimited results
         default_cap = 100  # High default, effectively unlimited
-        max_results_raw = payload.get("max_results", default_cap)
+        max_results = int(payload.get("max_results", 18))
         # Force GPT-5 model
         model = "gpt-5"
         # Default to arXiv + OpenAlex
@@ -312,6 +324,30 @@ def create_app() -> Flask:
             if not sources:
                 return {"error": "At least one valid source must be selected. Valid sources: arxiv, pubmed, openalex"}, 400
         
+        # Domain filtering parameters
+        primary_domains = payload.get("primary_domains", [])
+        exclude_domains = payload.get("exclude_domains", [])
+        focus_keywords = payload.get("focus_keywords", [])
+        
+        # Validate domain parameters
+        available_domains = get_available_domains()
+        valid_domain_keys = list(available_domains.keys())
+        
+        if isinstance(primary_domains, list):
+            primary_domains = [d for d in primary_domains if d in valid_domain_keys]
+        else:
+            primary_domains = []
+            
+        if isinstance(exclude_domains, list):
+            exclude_domains = [d for d in exclude_domains if d in valid_domain_keys]
+        else:
+            exclude_domains = []
+            
+        if isinstance(focus_keywords, list):
+            focus_keywords = [str(k).strip() for k in focus_keywords if str(k).strip()]
+        else:
+            focus_keywords = []
+        
         # Reasoning/verbosity controls (default to high reasoning if unspecified)
         def _norm_effort(val: str | None) -> str | None:
             if not val:
@@ -325,11 +361,7 @@ def create_app() -> Flask:
             return {"low": "low", "med": "medium", "medium": "medium", "high": "high"}.get(v, v)
         reasoning_effort = _norm_effort(payload.get("reasoning_effort") or os.getenv("DEFAULT_REASONING_EFFORT", "high"))
         verbosity = _norm_verbosity(payload.get("verbosity") or os.getenv("DEFAULT_VERBOSITY"))
-        try:
-            max_results = int(max_results_raw)
-        except Exception:
-            max_results = 10
-
+        
         if not query:
             return {"error": "Missing 'query'"}, 400
 
@@ -374,6 +406,9 @@ def create_app() -> Flask:
                     sources=sources,
                     reasoning_effort=reasoning_effort,
                     verbosity=verbosity,
+                    primary_domains=primary_domains,
+                    exclude_domains=exclude_domains,
+                    focus_keywords=focus_keywords,
                 )
             )
             return jsonify(results), 200

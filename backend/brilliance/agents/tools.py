@@ -44,6 +44,7 @@ def _check_budget() -> None:
 from brilliance.tools.arxiv import search_arxiv
 from brilliance.tools.pubmed import search_pubmed
 from brilliance.tools.openalex import search_openalex
+from brilliance.tools.enhanced_arxiv import enhanced_arxiv_search_sync
 
 
 @function_tool()
@@ -92,5 +93,31 @@ def openalex_search(query: str, max_results: int = 10) -> str:
     _check_budget()
     cap = min(int(max_results), int(_BUDGET.get("per_source_max", max_results)))
     return search_openalex(query, cap)
+
+
+@function_tool()
+def enhanced_arxiv_search(query: str, max_results: int = 25) -> str:
+    """Enhanced arXiv search with terminology expansion and relevance filtering.
+    
+    This tool performs multiple searches using expanded terminology and filters
+    results using AI-based relevance evaluation. It finds more comprehensive 
+    and relevant papers compared to standard arXiv search.
+
+    Args:
+        query: Research question or topic to search for
+        max_results: Maximum number of final relevant papers to return
+
+    Returns:
+        A formatted string of highly relevant papers with relevance scores
+    """
+    _check_budget()
+    cap = min(int(max_results), int(_BUDGET.get("per_source_max", max_results)) * 2)  # Allow more for enhanced search
+    return enhanced_arxiv_search_sync(
+        query=query,
+        max_results=cap,
+        min_relevance_score=0.4,
+        enable_ai_expansion=True,
+        enable_relevance_filtering=True
+    )
 
 

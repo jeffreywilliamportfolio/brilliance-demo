@@ -49,6 +49,7 @@ coverage.xml
 
 # Database
 *.sqlite3
+dump.rdb
 
 # Logs and debug files
 *.log

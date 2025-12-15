@@ -1,7 +1,9 @@
 #!/bin/bash
 
 # Start backend in background
-cd backend
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="$DIR/.."
+cd "$PROJECT_ROOT/backend"
 if [ ! -d "venv" ]; then
     python -m venv venv
 fi
