@@ -28,7 +28,7 @@ dist/
 *.egg
 
 # Frontend (separate repository)
-frontend/
+# frontend/
 
 # Node / React (if any backend Node.js tools)
 node_modules/
